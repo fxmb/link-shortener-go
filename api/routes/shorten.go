@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/go-redis/redis/v8"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/internal/uuid"
+	"github.com/google/uuid"
 )
 
 type request struct {
@@ -19,10 +20,10 @@ type request struct {
 }
 
 type response struct {
-	URL            string        `json:"url"`
-	CustomShort    string        `json:"short"`
-	Expiry         time.Duration `json:"expiry"`
-	XRateRemaining int           `json:"rate_limit"`
+	URL             string        `json:"url"`
+	CustomShort     string        `json:"short"`
+	Expiry          time.Duration `json:"expiry"`
+	XRateRemaining  int           `json:"rate_limit"`
 	XRateLimitReset time.Duration `json:"rate_limit_reset"`
 }
 
@@ -31,7 +32,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	body := new(request)
 
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Bad Request"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err})
 	}
 
 	// implement rate limiting
@@ -52,7 +53,7 @@ func ShortenURL(c *fiber.Ctx) error {
 
 	// check if input is an acutal URL
 
-	if !govalidator.IsURL(body.URL) { 
+	if !govalidator.IsURL(body.URL) {
 		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid URL"})
 	}
 	// check for domain error (e.g. localhost)
@@ -67,7 +68,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	var id string
 
 	if body.CustomShort == "" {
-		id = uuid.New().String()[:6] 
+		id = uuid.New().String()[:6]
 	} else {
 		id = body.CustomShort
 	}
@@ -90,10 +91,10 @@ func ShortenURL(c *fiber.Ctx) error {
 	}
 
 	resp := response{
-		URL: body.URL
-		CustomShort: "",
-		Expiry: body.Expiry,
-		XRateRemaining: 10,
+		URL:             body.URL,
+		CustomShort:     "",
+		Expiry:          body.Expiry,
+		XRateRemaining:  10,
 		XRateLimitReset: 30,
 	}
 
@@ -103,9 +104,9 @@ func ShortenURL(c *fiber.Ctx) error {
 	resp.XRateRemaining, _ = strconv.Atoi(val)
 
 	ttl, _ := r2.TTL(database.Ctx, c.IP()).Result()
-	resp.XRateLimitReset =  ttl / time.Nanosecond / time.Minute
+	resp.XRateLimitReset = ttl / time.Nanosecond / time.Minute
 
-	resp.CustomShort = os.Getenv("DOMAIN")+ "/" + id
+	resp.CustomShort = os.Getenv("DOMAIN") + "/" + id
 
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
